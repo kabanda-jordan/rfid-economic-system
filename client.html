@@ -1,0 +1,723 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KJPay | RFID Card Management</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #f5f5f5;
+    }
+    .sidebar-item {
+      transition: all 0.2s ease;
+    }
+    .sidebar-item:hover {
+      background-color: #e5e5e5;
+    }
+    .sidebar-item.active {
+      background-color: #5cb3a6;
+      color: white;
+    }
+    .card-shadow {
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+    .mastercard-logo {
+      position: relative;
+      width: 50px;
+      height: 32px;
+    }
+    .mastercard-circle-red {
+      position: absolute;
+      left: 0;
+      width: 32px;
+      height: 32px;
+      background: #eb001b;
+      border-radius: 50%;
+    }
+    .mastercard-circle-orange {
+      position: absolute;
+      right: 0;
+      width: 32px;
+      height: 32px;
+      background: #f79e1b;
+      border-radius: 50%;
+      opacity: 0.9;
+    }
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 6px;
+    }
+    .status-active {
+      background-color: #10b981;
+    }
+    .status-scanning {
+      background-color: #3b82f6;
+      animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+    .status-offline {
+      background-color: #ef4444;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: .5; }
+    }
+    .rfid-card {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      position: relative;
+      overflow: hidden;
+    }
+    .rfid-card::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      right: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+    }
+    .chip-icon {
+      width: 40px;
+      height: 32px;
+      background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%);
+      border-radius: 6px;
+      position: relative;
+    }
+    .chip-icon::before {
+      content: '';
+      position: absolute;
+      inset: 4px;
+      background: repeating-linear-gradient(90deg, #d4af37 0px, #d4af37 2px, transparent 2px, transparent 4px);
+    }
+    .modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal.active {
+      display: flex;
+    }
+    .modal-content {
+      background: white;
+      border-radius: 16px;
+      max-width: 500px;
+      width: 90%;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+  </style>
+</head>
+<body class="min-h-screen">
+  <div class="flex h-screen overflow-hidden">
+    <!-- Sidebar -->
+    <aside class="w-64 bg-white border-r border-gray-200 flex flex-col">
+      <div class="p-6 border-b border-gray-200">
+        <div class="flex items-center gap-3">
+          <div class="mastercard-logo">
+            <div class="mastercard-circle-red"></div>
+            <div class="mastercard-circle-orange"></div>
+          </div>
+          <span class="text-xl font-bold text-gray-900">KJPay</span>
+        </div>
+        <p class="text-xs text-gray-500 mt-1">RFID Payment System</p>
+      </div>
+      <nav class="flex-1 p-4 space-y-1">
+        <a href="#" class="sidebar-item active flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium">
+          <i class="fas fa-th-large w-5"></i>
+          <span>Dashboard</span>
+        </a>
+        <a href="#" class="sidebar-item flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-700">
+          <i class="fas fa-credit-card w-5"></i>
+          <span>RFID Cards</span>
+        </a>
+        <a href="#" class="sidebar-item flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-700">
+          <i class="fas fa-history w-5"></i>
+          <span>Transactions</span>
+        </a>
+        <a href="#" class="sidebar-item flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-700">
+          <i class="fas fa-microchip w-5"></i>
+          <span>ESP8266 Hub</span>
+        </a>
+        <a href="#" class="sidebar-item flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-700">
+          <i class="fas fa-chart-bar w-5"></i>
+          <span>Reports</span>
+        </a>
+        <a href="#" class="sidebar-item flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-700">
+          <i class="fas fa-cog w-5"></i>
+          <span>Settings</span>
+        </a>
+      </nav>
+      <div class="p-4 border-t border-gray-200">
+        <div class="bg-gray-50 rounded-lg p-3 mb-3">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-medium text-gray-600">MQTT Broker</span>
+            <span id="mqtt-status" class="status-dot status-active"></span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-medium text-gray-600">ESP8266 Hub</span>
+            <span id="esp-status" class="status-dot status-active"></span>
+          </div>
+        </div>
+        <div class="flex items-center gap-3 px-2 py-2">
+          <div class="w-8 h-8 bg-teal-500 rounded-full flex items-center justify-center text-white text-sm font-semibold">TR</div>
+          <div class="flex-1">
+            <p class="text-sm font-medium text-gray-900">The Rock</p>
+            <p class="text-xs text-gray-500">Team Admin</p>
+          </div>
+        </div>
+      </div>
+    </aside>
+    <!-- Main Content -->
+    <main class="flex-1 overflow-y-auto">
+      <header class="bg-white border-b border-gray-200 px-8 py-4">
+        <div class="flex items-center justify-between">
+          <div>
+            <h1 class="text-2xl font-bold text-gray-900">RFID Card Management</h1>
+            <p class="text-sm text-gray-500 mt-1">Real-time card monitoring via MQTT • rfid/the_rock/</p>
+          </div>
+          <div class="flex items-center gap-3">
+            <div id="feedback" class="hidden px-4 py-2 rounded-lg text-sm font-medium"></div>
+            <button onclick="openCreateModal()" class="px-4 py-2 bg-teal-500 text-white rounded-lg text-sm font-medium hover:bg-teal-600 transition flex items-center gap-2">
+              <i class="fas fa-plus"></i>
+              Register Card
+            </button>
+            <div class="flex items-center gap-2 px-4 py-2 bg-gray-50 rounded-lg">
+              <span id="conn-status-dot" class="status-dot status-active"></span>
+              <span id="conn-status" class="text-sm font-medium text-gray-700">Connecting...</span>
+            </div>
+          </div>
+        </div>
+      </header>
+      <div class="p-8">
+        <!-- Stats -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <div class="bg-white rounded-xl p-6 card-shadow">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-xs font-medium text-gray-500 uppercase mb-1">Active Cards</p>
+                <p id="stat-cards" class="text-3xl font-bold text-gray-900">0</p>
+              </div>
+              <div class="w-12 h-12 bg-blue-50 rounded-lg flex items-center justify-center">
+                <i class="fas fa-credit-card text-blue-600 text-xl"></i>
+              </div>
+            </div>
+          </div>
+          <div class="bg-white rounded-xl p-6 card-shadow">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-xs font-medium text-gray-500 uppercase mb-1">Total Balance</p>
+                <p id="stat-balance" class="text-3xl font-bold text-gray-900">0</p>
+                <p class="text-xs text-gray-500 mt-1">RWF</p>
+              </div>
+              <div class="w-12 h-12 bg-green-50 rounded-lg flex items-center justify-center">
+                <i class="fas fa-wallet text-green-600 text-xl"></i>
+              </div>
+            </div>
+          </div>
+          <div class="bg-white rounded-xl p-6 card-shadow">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-xs font-medium text-gray-500 uppercase mb-1">Transactions</p>
+                <p id="stat-transactions" class="text-3xl font-bold text-gray-900">0</p>
+              </div>
+              <div class="w-12 h-12 bg-purple-50 rounded-lg flex items-center justify-center">
+                <i class="fas fa-exchange-alt text-purple-600 text-xl"></i>
+              </div>
+            </div>
+          </div>
+          <div class="bg-white rounded-xl p-6 card-shadow">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-xs font-medium text-gray-500 uppercase mb-1">Last Scan</p>
+                <p id="stat-last-scan" class="text-sm font-semibold text-gray-900">Waiting...</p>
+              </div>
+              <div class="w-12 h-12 bg-orange-50 rounded-lg flex items-center justify-center">
+                <i class="fas fa-wifi text-orange-600 text-xl"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- Cards Grid -->
+        <div class="mb-8">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-bold text-gray-900">Registered RFID Cards</h2>
+            <span id="cardCount" class="text-sm text-gray-500">0 cards</span>
+          </div>
+          <div id="cardsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div class="col-span-full text-center py-12 text-gray-400 bg-white rounded-xl card-shadow">
+              <i class="fas fa-credit-card text-4xl mb-3 opacity-30"></i>
+              <p class="text-sm">No cards scanned yet</p>
+              <p class="text-xs mt-1">Scan an RFID card on the ESP8266 hub to get started</p>
+            </div>
+          </div>
+        </div>
+        <!-- Top-up Section -->
+        <div class="bg-white rounded-xl p-6 card-shadow mb-8">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 bg-teal-500 rounded-lg flex items-center justify-center text-white">
+              <i class="fas fa-bolt"></i>
+            </div>
+            <div>
+              <h2 class="text-lg font-bold text-gray-900">Card Top-Up</h2>
+              <p class="text-xs text-gray-500">Add balance to RFID cards via MQTT command</p>
+            </div>
+          </div>
+          <form id="topupForm" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label class="block text-xs font-medium text-gray-600 mb-2 uppercase">Card UID</label>
+              <input type="text" id="uid" required placeholder="e.g., A1B2C3D4" class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition text-sm font-mono uppercase">
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-gray-600 mb-2 uppercase">Amount (RWF)</label>
+              <input type="number" id="amount" required placeholder="0" min="1" class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition text-sm">
+            </div>
+            <div class="flex items-end">
+              <button type="submit" class="w-full px-6 py-2.5 bg-teal-500 text-white rounded-lg text-sm font-medium hover:bg-teal-600 transition flex items-center justify-center gap-2">
+                <i class="fas fa-paper-plane"></i>
+                Send Top-Up Command
+              </button>
+            </div>
+          </form>
+        </div>
+        <!-- Activity Feed -->
+        <div class="bg-white rounded-xl p-6 card-shadow">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-bold text-gray-900">Real-Time Activity Stream</h2>
+            <div class="flex items-center gap-2 text-xs text-gray-500">
+              <i class="fas fa-stream"></i>
+              <span>Live via WebSocket</span>
+            </div>
+          </div>
+          <div id="updates" class="space-y-3 max-h-96 overflow-y-auto">
+            <div class="text-center py-12 text-gray-400">
+              <i class="fas fa-satellite-dish text-3xl mb-3 opacity-30"></i>
+              <p class="text-sm">Waiting for RFID events...</p>
+              <p class="text-xs mt-1">Activity will appear here in real-time</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+  <!-- Create/Edit Card Modal -->
+  <div id="cardModal" class="modal">
+    <div class="modal-content">
+      <div class="p-6 border-b border-gray-200">
+        <div class="flex items-center justify-between">
+          <h3 id="modalTitle" class="text-xl font-bold text-gray-900">Register New Card</h3>
+          <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600">
+            <i class="fas fa-times text-xl"></i>
+          </button>
+        </div>
+      </div>
+      <form id="cardForm" class="p-6 space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">Card UID *</label>
+          <input type="text" id="modal-uid" required placeholder="e.g., A1B2C3D4" class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition text-sm font-mono uppercase">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">Card Holder Name</label>
+          <input type="text" id="modal-holder" placeholder="e.g., John Doe" class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition text-sm">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">Card Type</label>
+          <select id="modal-type" class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition text-sm">
+            <option value="Standard">Standard</option>
+            <option value="Premium">Premium</option>
+            <option value="VIP">VIP</option>
+            <option value="Employee">Employee</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">Notes</label>
+          <textarea id="modal-notes" rows="3" placeholder="Optional notes..." class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition text-sm resize-none"></textarea>
+        </div>
+        <div class="flex gap-3 pt-4">
+          <button type="button" onclick="closeModal()" class="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition">Cancel</button>
+          <button type="submit" class="flex-1 px-4 py-2.5 bg-teal-500 text-white rounded-lg text-sm font-medium hover:bg-teal-600 transition">
+            <span id="modalSubmitText">Register Card</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+  <!-- Delete Confirmation Modal -->
+  <div id="deleteModal" class="modal">
+    <div class="modal-content">
+      <div class="p-6">
+        <div class="flex items-center gap-4 mb-4">
+          <div class="w-12 h-12 bg-red-50 rounded-lg flex items-center justify-center">
+            <i class="fas fa-exclamation-triangle text-red-600 text-xl"></i>
+          </div>
+          <div>
+            <h3 class="text-xl font-bold text-gray-900">Delete Card</h3>
+            <p class="text-sm text-gray-500 mt-1">This action cannot be undone</p>
+          </div>
+        </div>
+        <p class="text-sm text-gray-700 mb-6">Are you sure you want to delete card <strong id="deleteCardUid"></strong>?</p>
+        <div class="flex gap-3">
+          <button onclick="closeDeleteModal()" class="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition">Cancel</button>
+          <button onclick="confirmDelete()" class="flex-1 px-4 py-2.5 bg-red-500 text-white rounded-lg text-sm font-medium hover:bg-red-600 transition">Delete Card</button>
+        </div>
+      </div>
+    </div>
+  </div>
+<script>
+const BACKEND_URL = "http://localhost:9259";
+const WS_URL = BACKEND_URL.replace(/^http/, 'ws');
+const cards = new Map();
+let transactionCount = 0;
+let editingCardUid = null;
+let deletingCardUid = null;
+const ws = new WebSocket(WS_URL);
+const updatesDiv = document.getElementById('updates');
+const cardsGrid = document.getElementById('cardsGrid');
+const feedback = document.getElementById('feedback');
+
+ws.onopen = () => {
+  updateConnectionStatus(true);
+  addActivity('system', 'WebSocket connection established', 'Connected to backend bridge');
+  loadCards();
+};
+
+ws.onclose = () => {
+  updateConnectionStatus(false);
+};
+
+ws.onerror = (error) => {
+  console.error('WebSocket error:', error);
+  updateConnectionStatus(false);
+};
+
+ws.onmessage = (event) => {
+  try {
+    const msg = JSON.parse(event.data);
+    if (msg.message && msg.message.includes('Connected')) {
+      addActivity('system', 'Backend bridge ready', 'MQTT topics: rfid/the_rock/*');
+      return;
+    }
+    const topic = msg.topic.split('/').pop();
+    const data = msg.data || msg.payload;
+    if (topic === 'created' || topic === 'updated') {
+      cards.set(data.uid, data);
+      renderCards();
+      updateStats();
+      addActivity('system', `Card ${topic}`, `${data.uid} - ${data.holderName}`);
+      return;
+    }
+    if (topic === 'deleted') {
+      cards.delete(data.uid);
+      renderCards();
+      updateStats();
+      addActivity('system', 'Card deleted', `${data.uid}`);
+      return;
+    }
+    const uidValue = data.uid || 'UNKNOWN';
+    let balanceValue = null;
+    if (topic.includes('status')) {
+      balanceValue = data.balance;
+      const existingCard = cards.get(uidValue);
+      cards.set(uidValue, { 
+        ...existingCard,
+        uid: uidValue, 
+        balance: balanceValue, 
+        lastUpdate: new Date(),
+        lastScan: new Date().toISOString(),
+        scanCount: (existingCard?.scanCount || 0) + 1
+      });
+      addActivity('scan', `Card ${uidValue} scanned`, `Balance: ${balanceValue.toLocaleString()} RWF`);
+      document.getElementById('stat-last-scan').textContent = new Date().toLocaleTimeString();
+    } else if (topic.includes('balance')) {
+      balanceValue = data.new_balance;
+      const oldBalance = cards.get(uidValue)?.balance || 0;
+      const difference = balanceValue - oldBalance;
+      const existingCard = cards.get(uidValue);
+      cards.set(uidValue, { 
+        ...existingCard,
+        uid: uidValue, 
+        balance: balanceValue, 
+        lastUpdate: new Date(),
+        lastScan: new Date().toISOString()
+      });
+      transactionCount++;
+      addActivity('topup', `Top-up successful: ${uidValue}`, `+${difference.toLocaleString()} RWF → ${balanceValue.toLocaleString()} RWF`);
+    }
+    if (balanceValue !== null) {
+      renderCards();
+      updateStats();
+    }
+  } catch (e) { 
+    console.error('WebSocket message error:', e); 
+  }
+};
+
+function updateConnectionStatus(connected) {
+  const statusEl = document.getElementById('conn-status');
+  const statusDot = document.getElementById('conn-status-dot');
+  const mqttDot = document.getElementById('mqtt-status');
+  const espDot = document.getElementById('esp-status');
+  if (connected) {
+    statusEl.textContent = 'WebSocket Connected';
+    statusDot.className = 'status-dot status-active';
+    mqttDot.className = 'status-dot status-active';
+    espDot.className = 'status-dot status-scanning';
+  } else {
+    statusEl.textContent = 'Disconnected';
+    statusDot.className = 'status-dot status-offline';
+    mqttDot.className = 'status-dot status-offline';
+    espDot.className = 'status-dot status-offline';
+  }
+}
+
+function addActivity(type, title, description) {
+  const icons = {
+    scan: { icon: 'fa-wifi', color: 'blue' },
+    topup: { icon: 'fa-arrow-up', color: 'green' },
+    system: { icon: 'fa-info-circle', color: 'gray' }
+  };
+  const config = icons[type] || icons.system;
+  const entry = document.createElement('div');
+  entry.className = 'bg-gray-50 p-4 rounded-lg border border-gray-100 hover:border-gray-200 transition';
+  entry.innerHTML = `
+    <div class="flex items-start gap-3">
+      <div class="w-10 h-10 bg-${config.color}-50 rounded-lg flex items-center justify-center text-${config.color}-600 flex-shrink-0">
+        <i class="fas ${config.icon}"></i>
+      </div>
+      <div class="flex-1 min-w-0">
+        <p class="text-sm font-medium text-gray-900">${title}</p>
+        <p class="text-xs text-gray-500 mt-1">${description}</p>
+        <p class="text-xs text-gray-400 mt-2">${new Date().toLocaleTimeString()}</p>
+      </div>
+    </div>
+  `;
+  if (updatesDiv.querySelector('.text-center')) {
+    updatesDiv.innerHTML = '';
+  }
+  updatesDiv.prepend(entry);
+  while (updatesDiv.children.length > 20) {
+    updatesDiv.removeChild(updatesDiv.lastChild);
+  }
+}
+
+function renderCards() {
+  if (cards.size === 0) {
+    cardsGrid.innerHTML = '<div class="col-span-full text-center py-12 text-gray-400 bg-white rounded-xl card-shadow"><i class="fas fa-credit-card text-4xl mb-3 opacity-30"></i><p class="text-sm">No cards scanned yet</p><p class="text-xs mt-1">Scan an RFID card on the ESP8266 hub to get started</p></div>';
+    return;
+  }
+  cardsGrid.innerHTML = '';
+  cards.forEach((card) => {
+    const cardEl = document.createElement('div');
+    cardEl.className = 'rfid-card rounded-xl p-6 text-white relative group';
+    cardEl.innerHTML = `
+      <div class="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2 z-20">
+        <button onclick="openEditModal('${card.uid}')" class="w-8 h-8 bg-white/20 hover:bg-white/30 rounded-lg flex items-center justify-center backdrop-blur-sm transition">
+          <i class="fas fa-edit text-sm"></i>
+        </button>
+        <button onclick="openDeleteModal('${card.uid}')" class="w-8 h-8 bg-red-500/80 hover:bg-red-500 rounded-lg flex items-center justify-center backdrop-blur-sm transition">
+          <i class="fas fa-trash text-sm"></i>
+        </button>
+      </div>
+      <div class="relative z-10">
+        <div class="flex items-start justify-between mb-8">
+          <div class="chip-icon"></div>
+          <div class="mastercard-logo" style="transform: scale(0.8);">
+            <div class="mastercard-circle-red"></div>
+            <div class="mastercard-circle-orange"></div>
+          </div>
+        </div>
+        <div class="mb-2">
+          <p class="text-xs font-medium opacity-70 uppercase mb-1">Card Holder</p>
+          <p class="text-base font-semibold">${card.holderName || 'Unknown'}</p>
+        </div>
+        <div class="mb-6">
+          <p class="text-xs font-medium opacity-70 uppercase mb-1">Card UID</p>
+          <p class="text-sm font-mono tracking-wider">${card.uid}</p>
+        </div>
+        <div class="flex items-end justify-between">
+          <div>
+            <p class="text-xs font-medium opacity-70 uppercase mb-1">Balance</p>
+            <p class="text-3xl font-bold">${(card.balance || 0).toLocaleString()}</p>
+            <p class="text-xs opacity-70 mt-1">RWF • ${card.cardType || 'Standard'}</p>
+          </div>
+          <div class="text-right">
+            <p class="text-xs opacity-70">${card.scanCount || 0} scans</p>
+            <p class="text-xs font-medium">${card.lastScan ? new Date(card.lastScan).toLocaleTimeString() : 'Never'}</p>
+          </div>
+        </div>
+      </div>
+    `;
+    cardsGrid.appendChild(cardEl);
+  });
+  document.getElementById('cardCount').textContent = `${cards.size} card${cards.size !== 1 ? 's' : ''}`;
+}
+
+function updateStats() {
+  document.getElementById('stat-cards').textContent = cards.size;
+  let totalBalance = 0;
+  cards.forEach(card => totalBalance += (card.balance || 0));
+  document.getElementById('stat-balance').textContent = totalBalance.toLocaleString();
+  document.getElementById('stat-transactions').textContent = transactionCount;
+}
+
+document.getElementById('topupForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const uid = document.getElementById('uid').value.trim().toUpperCase();
+  const amount = parseInt(document.getElementById('amount').value);
+  if (!uid || isNaN(amount) || amount <= 0) {
+    return showFeedback('Please enter valid card UID and amount', 'error');
+  }
+  try {
+    const res = await fetch(`${BACKEND_URL}/topup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uid, amount })
+    });
+    if (res.ok) {
+      showFeedback(`Top-up command sent: ${amount} RWF to ${uid}`, 'success');
+      document.getElementById('topupForm').reset();
+      addActivity('system', 'Top-up command sent', `${amount} RWF → ${uid} via MQTT`);
+    } else {
+      const error = await res.text();
+      showFeedback(`Transaction failed: ${error}`, 'error');
+    }
+  } catch (err) { 
+    console.error('Top-up error:', err);
+    showFeedback('Connection error - check backend bridge', 'error'); 
+  }
+});
+
+function showFeedback(text, type = 'success') {
+  feedback.textContent = text;
+  feedback.className = `px-4 py-2 rounded-lg text-sm font-medium ${
+    type === 'success' ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-red-100 text-red-800 border border-red-200'
+  }`;
+  feedback.classList.remove('hidden');
+  setTimeout(() => feedback.classList.add('hidden'), 5000);
+}
+
+async function loadCards() {
+  try {
+    const res = await fetch(`${BACKEND_URL}/cards`);
+    if (res.ok) {
+      const cardsArray = await res.json();
+      cards.clear();
+      cardsArray.forEach(card => cards.set(card.uid, card));
+      renderCards();
+      updateStats();
+    }
+  } catch (err) {
+    console.error('Failed to load cards:', err);
+  }
+}
+
+function openCreateModal() {
+  editingCardUid = null;
+  document.getElementById('modalTitle').textContent = 'Register New Card';
+  document.getElementById('modalSubmitText').textContent = 'Register Card';
+  document.getElementById('modal-uid').disabled = false;
+  document.getElementById('cardForm').reset();
+  document.getElementById('cardModal').classList.add('active');
+}
+
+function openEditModal(uid) {
+  const card = cards.get(uid);
+  if (!card) return;
+  editingCardUid = uid;
+  document.getElementById('modalTitle').textContent = 'Edit Card Information';
+  document.getElementById('modalSubmitText').textContent = 'Update Card';
+  document.getElementById('modal-uid').value = card.uid;
+  document.getElementById('modal-uid').disabled = true;
+  document.getElementById('modal-holder').value = card.holderName || '';
+  document.getElementById('modal-type').value = card.cardType || 'Standard';
+  document.getElementById('modal-notes').value = card.notes || '';
+  document.getElementById('cardModal').classList.add('active');
+}
+
+function closeModal() {
+  document.getElementById('cardModal').classList.remove('active');
+  editingCardUid = null;
+}
+
+function openDeleteModal(uid) {
+  deletingCardUid = uid;
+  document.getElementById('deleteCardUid').textContent = uid;
+  document.getElementById('deleteModal').classList.add('active');
+}
+
+function closeDeleteModal() {
+  document.getElementById('deleteModal').classList.remove('active');
+  deletingCardUid = null;
+}
+
+async function confirmDelete() {
+  if (!deletingCardUid) return;
+  try {
+    const res = await fetch(`${BACKEND_URL}/cards/${deletingCardUid}`, {
+      method: 'DELETE'
+    });
+    if (res.ok) {
+      showFeedback(`Card ${deletingCardUid} deleted successfully`, 'success');
+      closeDeleteModal();
+    } else {
+      const error = await res.json();
+      showFeedback(`Delete failed: ${error.error}`, 'error');
+    }
+  } catch (err) {
+    console.error('Delete error:', err);
+    showFeedback('Connection error', 'error');
+  }
+}
+
+document.getElementById('cardForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const uid = document.getElementById('modal-uid').value.trim().toUpperCase();
+  const holderName = document.getElementById('modal-holder').value.trim();
+  const cardType = document.getElementById('modal-type').value;
+  const notes = document.getElementById('modal-notes').value.trim();
+  if (!uid) {
+    return showFeedback('Card UID is required', 'error');
+  }
+  try {
+    let res;
+    if (editingCardUid) {
+      res = await fetch(`${BACKEND_URL}/cards/${uid}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ holderName, cardType, notes })
+      });
+    } else {
+      res = await fetch(`${BACKEND_URL}/cards`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uid, holderName, cardType, notes })
+      });
+    }
+    if (res.ok) {
+      const card = await res.json();
+      showFeedback(`Card ${editingCardUid ? 'updated' : 'registered'} successfully`, 'success');
+      closeModal();
+    } else {
+      const error = await res.json();
+      showFeedback(`Operation failed: ${error.error}`, 'error');
+    }
+  } catch (err) {
+    console.error('Card operation error:', err);
+    showFeedback('Connection error', 'error');
+  }
+});
+
+renderCards();
+updateStats();
+</script>
+</body>
+</html>
